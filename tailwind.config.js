@@ -1,0 +1,66 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          DEFAULT: '#063763',
+          50: '#e8f2ff',
+          100: '#d5e8ff',
+          200: '#b3d4ff',
+          300: '#85b8ff',
+          400: '#5691ff',
+          500: '#2e69ff',
+          600: '#1d4ff5',
+          700: '#1438e1',
+          800: '#1732b6',
+          900: '#063763',
+        },
+        secondary: {
+          DEFAULT: '#8BABC7',
+          50: '#f4f8fb',
+          100: '#e9f1f6',
+          200: '#d7e5ed',
+          300: '#bdd1de',
+          400: '#8BABC7',
+          500: '#7a9bb8',
+          600: '#6b89a6',
+          700: '#5d7894',
+          800: '#4f647a',
+          900: '#435362',
+        },
+        accent: {
+          DEFAULT: '#BB1821',
+          50: '#fef2f2',
+          100: '#fee2e2',
+          200: '#fecaca',
+          300: '#fca5a5',
+          400: '#f87171',
+          500: '#ef4444',
+          600: '#dc2626',
+          700: '#BB1821',
+          800: '#991b1b',
+          900: '#7f1d1d',
+        },
+        'accent-light': {
+          DEFAULT: '#DE6B73',
+          50: '#fdf2f3',
+          100: '#fce7e8',
+          200: '#f9d2d5',
+          300: '#f4b0b6',
+          400: '#ec8891',
+          500: '#DE6B73',
+          600: '#d14651',
+          700: '#b13440',
+          800: '#942e3a',
+          900: '#7c2937',
+        }
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+    },
+  },
+  plugins: [],
+};
