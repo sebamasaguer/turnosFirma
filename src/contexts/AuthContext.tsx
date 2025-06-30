@@ -2,7 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 // User type from Supabase is replaced by a simpler custom type or one from apiClient
 // import { User } from '@supabase/supabase-js';
 // import { supabase } from '../lib/supabase';
-import { adminLogin, adminLogout, AdminUser, getAdminUsers } from '../lib/apiClient'; // Import new auth functions
+
+import { adminLogin, adminLogout, AdminUser, getCurrentAdminUser } from '../lib/apiClient'; // Updated import
+
+
 
 // Define a simpler user type, or use AdminUser from apiClient if it fits
 interface AuthenticatedUser extends AdminUser {
@@ -39,77 +42,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // For this example, we'll assume the token's presence means the user is logged in.
         // A better approach: have a '/admin/me' endpoint that returns user info based on token.
         try {
-          // Mock: if we have a token, we try to fetch user data (e.g., admin users list to see if token works)
-          // This is not a direct user validation, but a way to check if token is still valid for some resources.
-          // A dedicated endpoint like GET /api/admin/auth/me would be better.
-          const adminUsers = await getAdminUsers(); // This uses the token from apiClient's fetchApi
-          // If the above call succeeds, it means the token is (likely) still valid for fetching protected resources.
-          // We need to reconstruct the user object. The token itself doesn't contain all user details.
-          // This is a limitation of not having a "me" endpoint.
-          // For now, we'll set a placeholder user if token exists.
-          // In a real scenario, you'd fetch the user's own data using the token.
 
-          // Let's try to get the user from localStorage if we stored it before,
-          // or we could fetch the user details based on the token.
-          const storedUser = localStorage.getItem('adminUser');
-          if (storedUser) {
-            const parsedUser: AuthenticatedUser = JSON.parse(storedUser);
-            setUser({...parsedUser, token});
-            setIsAdmin(true); // Assuming anyone who can log in via adminLogin is an admin.
-          } else {
-            // If only token is there but no user info, it's partial.
-            // For simplicity, we might clear the token if user info is missing.
-            // Or, rely on a "get current user" endpoint.
-            // For now, if no storedUser, we can't fully re-authenticate without a "me" endpoint.
-            localStorage.removeItem('adminAuthToken'); // Clean up if inconsistent
+          // A token exists in localStorage. Attempt to fetch the user's data using it.
+          try {
+            const fetchedUser = await getCurrentAdminUser(); // Calls GET /api/admin/me
+            if (fetchedUser) {
+              setUser(fetchedUser as AuthenticatedUser); // Store the fetched user details
+              setIsAdmin(true);
+              // Optionally, update localStorage['adminUser'] if needed, though not strictly necessary
+              // if /me is the source of truth on page load.
+              localStorage.setItem('adminUser', JSON.stringify(fetchedUser));
+            } else {
+              // This case might not be hit if getCurrentAdminUser throws an error for non-OK responses
+              throw new Error("Fetched user was null or undefined despite valid token response.");
+            }
+          } catch (error) {
+            console.warn("Failed to fetch current user with stored token:", error);
+            // If fetching user fails (e.g., token expired, server error), clear stored auth state.
+            localStorage.removeItem('adminAuthToken');
+            localStorage.removeItem('adminUser');
+            setUser(null);
+            setIsAdmin(false);
           }
-
-        } catch (error) {
-          console.warn("Auto-login with token failed or no specific user data available:", error);
-          localStorage.removeItem('adminAuthToken'); // Token might be invalid
-          localStorage.removeItem('adminUser');
+        } else {
+          // No token found in localStorage.
+          setUser(null);
+          setIsAdmin(false);
         }
+      } catch (e) {
+        // Catch any unexpected errors during the auto-login process
+        console.error("Unexpected error during auto-login:", e);
+        localStorage.removeItem('adminAuthToken');
+        localStorage.removeItem('adminUser');
+        setUser(null);
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
+
     };
     attemptAutoLogin();
   }, []);
 
 
-  // checkAdminStatus is no longer directly called on Supabase auth change.
-  // Instead, our adminLogin will determine if the user is an admin.
-  // If the app structure changes to allow non-admin logins, this needs revisiting.
-  // For now, if `adminLogin` is successful, we assume isAdmin is true.
-
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
       const { user: loggedInUser, token } = await adminLogin({ email, password });
-      const authenticatedUser: AuthenticatedUser = { ...loggedInUser, token };
-      setUser(authenticatedUser);
-      setIsAdmin(true); // Assuming successful admin login means they are an admin
-      localStorage.setItem('adminAuthToken', token); // Handled by apiClient, but good to be explicit
+      // Token is stored in localStorage by apiClient.adminLogin
       localStorage.setItem('adminUser', JSON.stringify(loggedInUser)); // Store user details
+      setUser(loggedInUser as AuthenticatedUser);
+      setIsAdmin(true);
     } catch (error) {
-      setUser(null);
-      setIsAdmin(false);
       localStorage.removeItem('adminAuthToken');
       localStorage.removeItem('adminUser');
+      setUser(null);
+      setIsAdmin(false);
       console.error("Sign in failed:", error);
-      throw error; // Re-throw to be caught by LoginPage
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const signOut = async () => {
+  const signOut = () => {
     setLoading(true);
-    // adminLogout from apiClient handles localStorage.removeItem('adminAuthToken')
-    adminLogout();
-    localStorage.removeItem('adminUser'); // Also clear stored user details
+    adminLogout(); // Clears token from localStorage and adminUser from localStorage
     setUser(null);
     setIsAdmin(false);
-    // No backend call for signOut in the current apiClient, but could be added.
+
     setLoading(false);
   };
 

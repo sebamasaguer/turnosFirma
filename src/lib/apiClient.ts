@@ -35,12 +35,17 @@ export type AdminUser = {
 
 // Helper function for making API requests
 async function fetchApi(url: string, options: RequestInit = {}) {
-  const headers = {
+
+  const token = localStorage.getItem('adminAuthToken');
+  const headers: HeadersInit = { // Explicitly type headers
     'Content-Type': 'application/json',
-    // Include Authorization header if you have tokens
-    // 'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
     ...options.headers,
   };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
 
   const response = await fetch(`${API_BASE_URL}${url}`, { ...options, headers });
 
@@ -88,33 +93,34 @@ export const adminLogin = async (credentials: { email: string; password: string 
     method: 'POST',
     body: JSON.stringify(credentials),
   });
-  // Store token if login is successful - this is a mock token
+
+  // The backend now returns a real JWT.
+  // Store the token upon successful login.
   if (response.token) {
-    localStorage.setItem('adminAuthToken', response.token); // Example: store mock token
+    localStorage.setItem('adminAuthToken', response.token);
   }
-  return response;
+  return response; // Contains { message, user, token }
+
 };
 
 export const adminLogout = () => {
   localStorage.removeItem('adminAuthToken');
-  // Potentially call a backend logout endpoint if it exists
+
+  localStorage.removeItem('adminUser'); // Also clear stored user details if any
+  // No backend call for logout in this setup, but could be added (e.g., to invalidate token server-side if using a blacklist).
 };
 
-// Example of a protected route call (assuming token is stored)
+// Protected admin routes will now automatically include the token via fetchApi
 export const getAdminUsers = (): Promise<AdminUser[]> => {
-  return fetchApi('/admin/users', {
-    headers: {
-      // This is where you'd add a real token
-      // 'Authorization': `Bearer ${localStorage.getItem('adminAuthToken')}`
-    }
-  });
+  return fetchApi('/admin/users');
+
 };
 
 export const createAdminUser = (userData: Omit<AdminUser, 'id' | 'created_at'> & {password: string}): Promise<AdminUser> => {
     return fetchApi('/admin/users', {
         method: 'POST',
         body: JSON.stringify(userData),
-        // headers: { 'Authorization': `Bearer ${localStorage.getItem('adminAuthToken')}` } // If protected
+
     });
 };
 
@@ -122,15 +128,19 @@ export const updateAdminUser = (id: string, userData: Partial<Omit<AdminUser, 'i
     return fetchApi(`/admin/users/${id}`, {
         method: 'PUT',
         body: JSON.stringify(userData),
-        // headers: { 'Authorization': `Bearer ${localStorage.getItem('adminAuthToken')}` } // If protected
+
     });
 };
 
 export const deleteAdminUser = (id: string): Promise<{ message: string; deletedUser: AdminUser } | null> => {
     return fetchApi(`/admin/users/${id}`, {
         method: 'DELETE',
-        // headers: { 'Authorization': `Bearer ${localStorage.getItem('adminAuthToken')}` } // If protected
+
     });
+};
+
+export const getCurrentAdminUser = (): Promise<AdminUser> => {
+  return fetchApi('/admin/me');
 };
 
 
