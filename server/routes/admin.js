@@ -10,12 +10,14 @@ const { generateToken } = require('../utils/authUtils');
 const authenticateToken = require('../middleware/authenticateToken');
 
 // POST admin login - This route should NOT be protected by authenticateToken itself, as it's for getting the token.
+
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
   try {
+
     const result = await db.query('SELECT id, email, full_name, password_hash FROM admin_users WHERE email = $1', [email]);
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' }); // User not found
@@ -43,16 +45,19 @@ router.post('/login', async (req, res) => {
       }
     });
 
+
   } catch (err) {
     console.error('Admin login error:', err);
     res.status(500).json({ error: 'Internal server error during login' });
   }
 });
 
+
 // GET all admin users - PROTECTED
 router.get('/users', authenticateToken, async (req, res) => {
   try {
     // req.user is available here from authenticateToken middleware
+
     const { rows } = await db.query('SELECT id, email, full_name, created_at FROM admin_users ORDER BY created_at DESC');
     res.json(rows);
   } catch (err) {
@@ -60,6 +65,7 @@ router.get('/users', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 
 // POST a new admin user - PROTECTED
@@ -96,25 +102,30 @@ router.post('/users', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error('Error creating admin user:', err);
         if (err.code === '23505') {
+
             return res.status(409).json({ error: 'Admin user with this email already exists.' });
         }
         res.status(500).json({ error: 'Internal server error' });
     }
 });
 
+
 // PUT (update) an admin user - PROTECTED
 router.put('/users/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { email, full_name } = req.body;
 
+
     if (!email && !full_name) {
         return res.status(400).json({ error: 'No fields to update provided (email, full_name).' });
     }
+
 
     // Optional: Check if the authenticated user is updating their own profile or has permission
     // if (req.user.id !== id && req.user.role !== 'superadmin') {
     //     return res.status(403).json({ error: 'Forbidden' });
     // }
+
 
     try {
         const setClauses = [];
@@ -150,12 +161,15 @@ router.put('/users/:id', authenticateToken, async (req, res) => {
         res.json(rows[0]);
     } catch (err) {
         console.error(`Error updating admin user ${id}:`, err);
+
         if (err.code === '23505') {
+
             return res.status(409).json({ error: 'Another admin user with this email already exists.' });
         }
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
 
 // DELETE an admin user - PROTECTED
 router.delete('/users/:id', authenticateToken, async (req, res) => {
@@ -168,6 +182,9 @@ router.delete('/users/:id', authenticateToken, async (req, res) => {
     // if (req.user.role !== 'superadmin') {
     //    return res.status(403).json({ error: 'Forbidden: Insufficient privileges' });
     // }
+
+
+// DELETE an admin user
 
     try {
         const queryText = 'DELETE FROM admin_users WHERE id = $1 RETURNING id, email, full_name;';
@@ -182,6 +199,7 @@ router.delete('/users/:id', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
 
 // GET current authenticated admin user details - PROTECTED
 router.get('/me', authenticateToken, async (req, res) => {

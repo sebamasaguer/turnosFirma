@@ -2,7 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 // User type from Supabase is replaced by a simpler custom type or one from apiClient
 // import { User } from '@supabase/supabase-js';
 // import { supabase } from '../lib/supabase';
+
 import { adminLogin, adminLogout, AdminUser, getCurrentAdminUser } from '../lib/apiClient'; // Updated import
+
+
 
 // Define a simpler user type, or use AdminUser from apiClient if it fits
 interface AuthenticatedUser extends AdminUser {
@@ -39,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // For this example, we'll assume the token's presence means the user is logged in.
         // A better approach: have a '/admin/me' endpoint that returns user info based on token.
         try {
+
           // A token exists in localStorage. Attempt to fetch the user's data using it.
           try {
             const fetchedUser = await getCurrentAdminUser(); // Calls GET /api/admin/me
@@ -75,9 +79,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setLoading(false);
       }
+
     };
     attemptAutoLogin();
   }, []);
+
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
@@ -104,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     adminLogout(); // Clears token from localStorage and adminUser from localStorage
     setUser(null);
     setIsAdmin(false);
+
     setLoading(false);
   };
 

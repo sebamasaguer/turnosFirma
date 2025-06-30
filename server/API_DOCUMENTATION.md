@@ -167,10 +167,12 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
 
 -   **Endpoint:** `POST /api/admin/login`
 -   **Description:** Authenticates an admin user and returns a JWT.
+
 -   **Request Body:**
     ```json
     {
       "email": "admin@example.com",
+
       "password": "securepassword123"
     }
     ```
@@ -185,19 +187,23 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
             "email": "admin@example.com",
             "full_name": "Admin User"
           }
+
         }
         ```
     -   `400 Bad Request`: If email or password is not provided.
         ```json
         { "error": "Email and password are required" }
         ```
+
     -   `401 Unauthorized`: Invalid credentials (user not found or password incorrect).
+
         ```json
         { "error": "Invalid credentials" }
         ```
     -   `500 Internal Server Error`: Database or other server error.
 
 ---
+
 
 ### 2. Get Current Authenticated Admin User
 
@@ -239,15 +245,18 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
             "email": "admin1@example.com",
             "full_name": "Admin One",
             "created_at": "2023-10-25T10:00:00.000Z"
+
           }
           // ... other admin users
         ]
         ```
     -   `401 Unauthorized`: No token provided.
     -   `403 Forbidden`: Invalid or expired token.
+
     -   `500 Internal Server Error`: Database error.
 
 ---
+
 
 ### 4. Create a New Admin User
 
@@ -256,16 +265,19 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
     *(Consider if this endpoint should have role-based restrictions, e.g., only creatable by a superadmin).*
 -   **Headers:**
     -   `Authorization: Bearer <your_jwt_token>`
+
 -   **Request Body:**
     ```json
     {
       "email": "newadmin@example.com",
       "full_name": "New Admin",
+
       "password": "securePassword123"
     }
     ```
 -   **Responses:**
     -   `201 Created`: Admin user created. Returns the created user object (excluding password hash).
+
         ```json
         {
           "id": "new-admin-uuid",
@@ -275,8 +287,10 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
         }
         ```
     -   `400 Bad Request`: Missing required fields.
+
     -   `401 Unauthorized`: No token provided.
     -   `403 Forbidden`: Invalid/expired token or insufficient privileges (if role system implemented).
+
     -   `409 Conflict`: If an admin user with this email already exists.
         ```json
         { "error": "Admin user with this email already exists." }
@@ -285,12 +299,14 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
 
 ---
 
+
 ### 5. Update an Admin User
 
 -   **Endpoint:** `PUT /api/admin/users/:id`
 -   **Description:** Updates an existing admin user's details (e.g., email, full_name). Password updates should be handled via a separate, secure mechanism (e.g., a dedicated "change password" endpoint).
 -   **Headers:**
     -   `Authorization: Bearer <your_jwt_token>`
+
 -   **URL Parameters:**
     -   `id` (string, required): The UUID of the admin user to update.
 -   **Request Body:** Object containing fields to update.
@@ -303,13 +319,16 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
 -   **Responses:**
     -   `200 OK`: Update successful. Returns the updated admin user object.
     -   `400 Bad Request`: No valid fields to update provided.
+
     -   `401 Unauthorized`: No token provided.
     -   `403 Forbidden`: Invalid/expired token or insufficient privileges (e.g., trying to edit another user without superadmin rights).
+
     -   `404 Not Found`: Admin user with the given ID not found.
     -   `409 Conflict`: If trying to update email to one that already exists for another user.
     -   `500 Internal Server Error`: Database error.
 
 ---
+
 
 ### 6. Delete an Admin User
 
@@ -318,6 +337,7 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
     *(Consider if this endpoint should have role-based restrictions, e.g., only deletable by a superadmin, and preventing self-deletion via this route).*
 -   **Headers:**
     -   `Authorization: Bearer <your_jwt_token>`
+
 -   **URL Parameters:**
     -   `id` (string, required): The UUID of the admin user to delete.
 -   **Request Body:** None
@@ -329,13 +349,17 @@ All data is exchanged in JSON format. All endpoints under `/api/admin` (except `
           "deletedUser": { "id": "admin-uuid", "email": "deleted@example.com", "full_name": "Deleted Admin" }
         }
         ```
+
     -   `401 Unauthorized`: No token provided.
     -   `403 Forbidden`: Invalid/expired token or insufficient privileges.
+
     -   `404 Not Found`: Admin user not found.
     -   `500 Internal Server Error`: Database error.
 
 ---
 
+
 This documentation should be kept up-to-date as the API evolves.
 The database schema details (table names, column names) are defined in the respective route handlers (e.g., `server/routes/appointments.js`) and the `db.js` module interacts with PostgreSQL.
 Refer to `server/.env` for environment variable configurations (database connection, CORS origins, JWT_SECRET).
+
