@@ -1,32 +1,37 @@
 import React, { useState } from 'react';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { DashboardPage } from './DashboardPage'; // Asegúrate de que la ruta sea correcta
+import { Navigate } from 'react-router-dom'; // Import Navigate for redirection
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loginSuccess, setLoginSuccess] = useState(false);
-  const { user, signIn } = useAuth();
+  // const [loading, setLoading] = useState(false); // Local loading state, AuthContext also has one
+  // const [loginSuccess, setLoginSuccess] = useState(false); // No longer needed, rely on user from AuthContext
+  const { user, signIn, loading: authLoading } = useAuth(); // Use loading from AuthContext
 
-  if (user || loginSuccess) {
-    return <DashboardPage />;
+  // If user is already logged in (e.g. token found and validated by AuthContext), redirect to dashboard
+  if (user) {
+    // return <DashboardPage />; // This was causing a direct render, better to navigate
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    // setLoading(true); // Use authLoading from context
 
     try {
-      await signIn(email, password);
-      setLoginSuccess(true);
-    } catch (error: any) {
-      setError('Credenciales inválidas. Por favor verifica tu email y contraseña.');
+      await signIn(email, password); // signIn now updates user in AuthContext
+      // setLoginSuccess(true); // No longer needed, user state in AuthContext will trigger re-render/redirect
+      // Navigation will happen due to the `if (user)` check above after context updates
+    } catch (err: any) {
+      // The signIn function in AuthContext should throw an error that we can catch here.
+      // It might be a generic error or a specific one from the API.
+      setError(err.message || 'Credenciales inválidas. Por favor verifica tu email y contraseña.');
     } finally {
-      setLoading(false);
+      // setLoading(false); // Managed by AuthContext
     }
   };
 
@@ -95,10 +100,10 @@ export function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={authLoading}
             className="w-full bg-primary text-white py-2 px-4 rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+            {authLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
         </form>
 

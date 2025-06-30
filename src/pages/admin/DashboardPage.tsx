@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Calendar, Users, Clock, CheckCircle, XCircle, Search } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, Database } from '../../lib/supabase';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getAppointments, updateAppointment, Appointment } from '../../lib/apiClient'; // Changed from supabase
 
-type Appointment = Database['public']['Tables']['appointments']['Row'];
+// No longer need Database type from supabase if Appointment type from apiClient is sufficient
+// type Appointment = Database['public']['Tables']['appointments']['Row'];
+// Using Appointment from apiClient
 
 export function DashboardPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -16,23 +18,26 @@ export function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
+    // The AuthContext might need to be updated if it relies on Supabase user object directly
+    // For now, assuming `user` and `isAdmin` from AuthContext are still valid indicators
     if (user && isAdmin) {
       fetchAppointments();
     }
   }, [user, isAdmin]);
 
   const fetchAppointments = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .order('appointment_date', { ascending: true })
-        .order('appointment_time', { ascending: true });
-
-      if (error) throw error;
+      const data = await getAppointments(); // API call
+      // The backend already orders by created_at DESC, if different order is needed,
+      // backend should support it or sort client-side.
+      // For now, assuming the default order from backend is fine or we sort here if necessary.
+      // Example client-side sort if backend doesn't sort as required:
+      data.sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime() || a.appointment_time.localeCompare(b.appointment_time));
       setAppointments(data || []);
     } catch (error) {
       console.error('Error fetching appointments:', error);
+      setAppointments([]); // Clear appointments on error or set error state
     } finally {
       setLoading(false);
     }
@@ -40,15 +45,12 @@ export function DashboardPage() {
 
   const updateAppointmentStatus = async (id: string, newStatus: 'confirmed' | 'cancelled') => {
     try {
-      const { error } = await supabase
-        .from('appointments')
-        .update({ status: newStatus })
-        .eq('id', id);
-
-      if (error) throw error;
+      // The API client's updateAppointment might need adjustment if it expects the full object
+      // or just the fields to update. Assuming it takes ID and the partial update.
+      const updatedApt = await updateAppointment(id, { status: newStatus });
       
       setAppointments(prev => 
-        prev.map(apt => apt.id === id ? { ...apt, status: newStatus } : apt)
+        prev.map(apt => apt.id === id ? { ...apt, status: updatedApt.status } : apt)
       );
     } catch (error) {
       console.error('Error updating appointment:', error);
