@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, Phone, Mail, CreditCard } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { format, addDays, isTuesday, isThursday, startOfDay } from 'date-fns';
+import { format, addDays, isTuesday, isThursday } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { getAppointments, createAppointment, Appointment } from '../lib/apiClient';
+
+interface TimeSlot {
 import { es } from 'date-fns/locale';
 
 interface TimeSlot {
@@ -43,20 +46,27 @@ export function AppointmentsPage() {
   const checkAvailableSlots = async (date: Date) => {
     const dateString = format(date, 'yyyy-MM-dd');
     
-    const { data: appointments } = await supabase
-      .from('appointments')
-      .select('appointment_time')
-      .eq('appointment_date', dateString)
-      .eq('status', 'confirmed');
+    try {
+      // Assuming getAppointments can be filtered by date and status on the backend,
+      // or we filter client-side if it returns all appointments.
+      // For now, let's assume it returns all and we filter here.
+      // Ideally, backend should support /api/appointments?appointment_date=YYYY-MM-DD&status=confirmed
+      const allAppointments = await getAppointments();
+      const occupiedTimes = allAppointments
+        .filter(apt => apt.appointment_date === dateString && apt.status === 'confirmed')
+        .map(apt => apt.appointment_time);
 
-    const occupiedTimes = appointments?.map(apt => apt.appointment_time) || [];
-    
-    const slots = timeSlots.map(time => ({
-      time,
-      available: !occupiedTimes.includes(time)
-    }));
-    
-    setAvailableSlots(slots);
+      const slots = timeSlots.map(time => ({
+        time,
+        available: !occupiedTimes.includes(time)
+      }));
+
+      setAvailableSlots(slots);
+    } catch (error) {
+      console.error("Error fetching available slots:", error);
+      // Optionally, set an error state to inform the user
+      setAvailableSlots(timeSlots.map(time => ({ time, available: false }))); // Mark all as unavailable on error
+    }
   };
 
   useEffect(() => {
@@ -76,19 +86,15 @@ export function AppointmentsPage() {
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('appointments')
-        .insert({
-          user_name: formData.name,
-          user_email: formData.email,
-          user_phone: formData.phone,
-          user_dni: formData.dni,
-          appointment_date: format(selectedDate, 'yyyy-MM-dd'),
-          appointment_time: selectedTime,
-          status: 'pending'
-        });
-
-      if (error) throw error;
+      await createAppointment({
+        user_name: formData.name,
+        user_email: formData.email,
+        user_phone: formData.phone,
+        user_dni: formData.dni,
+        appointment_date: format(selectedDate, 'yyyy-MM-dd'),
+        appointment_time: selectedTime,
+        // status: 'pending' // Backend should default this or be explicitly set if API requires
+      });
 
       setSuccess(true);
       setFormData({ name: '', email: '', phone: '', dni: '' });
