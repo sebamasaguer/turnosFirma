@@ -47,23 +47,73 @@ async function fetchApi(url: string, options: RequestInit = {}) {
   }
 
 
-  const response = await fetch(`${API_BASE_URL}${url}`, { ...options, headers });
+  try {
+    const response = await fetch(`${API_BASE_URL}${url}`, { ...options, headers });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Network response was not ok and error response body could not be parsed' }));
-    console.error('API Error:', response.status, errorData);
-    throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      let errorPayload;
+      try {
+        errorPayload = await response.json();
+      } catch (e) {
+        // If response.json() fails (e.g. not valid JSON, or empty for some errors)
+        // or if the response was not JSON at all.
+        console.error('API Error: Could not parse JSON from error response.', e);
+        // We'll use the status text if available, or a generic message.
+        throw new Error(`HTTP ${response.status}: ${response.statusText || 'Server error occurred'}`);
+      }
+      // Prefer server's 'error' or 'message' field, otherwise construct one.
+      const errorMessage = errorPayload?.error || errorPayload?.message || `HTTP ${response.status}: An unspecified error occurred.`;
+      console.error('API Error:', response.status, errorPayload);
+      throw new Error(errorMessage);
+    }
+
+    // Handle 204 No Content specifically, as response.json() would fail.
+    if (response.status === 204) {
+      return null; // Or an appropriate representation for "no content"
+    }
+
+    return response.json(); // For 200 OK and other successful responses with a body
+
+  } catch (error) {
+    // This catch block handles:
+    // 1. Network errors (fetch itself fails, e.g., server unreachable)
+    // 2. Errors explicitly thrown from the !response.ok block (already Error objects)
+    // 3. Errors from response.json() if the successful response body is not valid JSON (less common for 2xx)
+    console.error('API call failed:', error);
+
+    // Ensure we're always throwing an Error object
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      // In case something else was thrown that wasn't an Error object
+      throw new Error(String(error) || 'An unknown error occurred during the API call.');
+    }
   }
-  // For 204 No Content, response.json() will fail.
-  if (response.status === 204) {
-    return null;
-  }
-  return response.json();
 }
 
 // --- Appointments API ---
-export const getAppointments = (): Promise<Appointment[]> => {
-  return fetchApi('/appointments');
+export interface GetAppointmentsParams {
+  appointment_date?: string;
+  status?: 'pending' | 'confirmed' | 'cancelled' | 'all'; // 'all' or undefined for no status filter
+  sortBy?: 'created_at' | 'appointment_date' | 'user_name' | 'status';
+  order?: 'ASC' | 'DESC';
+}
+
+export const getAppointments = (params?: GetAppointmentsParams): Promise<Appointment[]> => {
+  let url = '/appointments';
+  if (params) {
+    const queryParams = new URLSearchParams();
+    if (params.appointment_date) queryParams.append('appointment_date', params.appointment_date);
+    if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params.order) queryParams.append('order', params.order);
+
+    const queryString = queryParams.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+  }
+  return fetchApi(url);
 };
 
 export const createAppointment = (appointmentData: AppointmentInsert): Promise<Appointment> => {

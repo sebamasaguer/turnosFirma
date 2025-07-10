@@ -12,32 +12,64 @@ import { getAppointments, updateAppointment, Appointment } from '../../lib/apiCl
 
 export function DashboardPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [allAppointments, setAllAppointments] = useState<Appointment[]>([]); // Holds all fetched appointments for stats
+  const [displayedAppointments, setDisplayedAppointments] = useState<Appointment[]>([]); // Holds filtered/searched appointments for table
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  // Default sort: by appointment_date ascending.
+  const [sortBy, setSortBy] = useState<'appointment_date' | 'created_at' | 'user_name' | 'status'>('appointment_date');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
 
+
+  // Fetch initial data
   useEffect(() => {
-    // The AuthContext might need to be updated if it relies on Supabase user object directly
-    // For now, assuming `user` and `isAdmin` from AuthContext are still valid indicators
     if (user && isAdmin) {
-      fetchAppointments();
+      loadAppointments();
     }
-  }, [user, isAdmin]);
+  }, [user, isAdmin]); // Runs when auth state is confirmed
 
-  const fetchAppointments = async () => {
+  // Re-fetch or re-filter data when filter, searchTerm, sortBy, or sortOrder changes
+  useEffect(() => {
+    if (user && isAdmin) {
+      // If backend handles search/filter, call loadAppointments. Otherwise, filter client-side.
+      // For now, let's assume backend handles status filter and sorting, client handles search.
+      loadAppointments();
+    }
+  }, [statusFilter, sortBy, sortOrder, user, isAdmin]); // Add user and isAdmin here as well
+
+  // Client-side search, applied after fetching/sorting
+   useEffect(() => {
+    let filtered = [...allAppointments]; // Start with all appointments fetched according to statusFilter, sortBy, sortOrder
+
+    if (searchTerm) {
+      filtered = filtered.filter(apt =>
+        (apt.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+        (apt.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+        (apt.user_dni?.includes(searchTerm) ?? false)
+      );
+    }
+    setDisplayedAppointments(filtered);
+  }, [searchTerm, allAppointments]);
+
+
+  const loadAppointments = async () => {
     setLoading(true);
     try {
-      const data = await getAppointments(); // API call
-      // The backend already orders by created_at DESC, if different order is needed,
-      // backend should support it or sort client-side.
-      // For now, assuming the default order from backend is fine or we sort here if necessary.
-      // Example client-side sort if backend doesn't sort as required:
-      data.sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime() || a.appointment_time.localeCompare(b.appointment_time));
-      setAppointments(data || []);
+      const params = {
+        status: statusFilter === 'all' ? undefined : statusFilter, // 'all' means no status filter for backend
+        sortBy: sortBy,
+        order: sortOrder,
+      };
+      const data = await getAppointments(params);
+      setAllAppointments(data || []); // Store all fetched (potentially filtered by status and sorted by backend)
+      // Search will be applied to this set by the other useEffect
+      // Initial display is all fetched data before search term is applied
+      // setDisplayedAppointments(data || []); // This will be handled by the search useEffect
     } catch (error) {
       console.error('Error fetching appointments:', error);
-      setAppointments([]); // Clear appointments on error or set error state
+      setAllAppointments([]);
+      setDisplayedAppointments([]);
     } finally {
       setLoading(false);
     }
@@ -73,22 +105,36 @@ export function DashboardPage() {
     return <Navigate to="/admin/login" replace />;
   }
 
-  const filteredAppointments = appointments.filter(apt => {
-    const matchesFilter = filter === 'all' || apt.status === filter;
-    const matchesSearch = 
-      (apt.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      (apt.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      (apt.user_dni?.includes(searchTerm) ?? false);
-    
-    return matchesFilter && matchesSearch;
-  });
-
+  // Stats should be calculated based on `allAppointments` before client-side search is applied,
+  // but after status filter from backend (if statusFilter is not 'all').
+  // For simplicity, if backend filters by status, these stats will reflect that.
+  // If we need stats on the *absolute* total irrespective of backend status filter,
+  // we'd need another fetch or adjust backend. Assuming current `allAppointments` is fine for stats.
   const stats = {
-    total: appointments.length,
-    pending: appointments.filter(apt => apt.status === 'pending').length,
-    confirmed: appointments.filter(apt => apt.status === 'confirmed').length,
-    cancelled: appointments.filter(apt => apt.status === 'cancelled').length,
+    total: allAppointments.length, // This reflects count after statusFilter (if not 'all') and sorting from backend
+    pending: allAppointments.filter(apt => apt.status === 'pending').length,
+    confirmed: allAppointments.filter(apt => apt.status === 'confirmed').length,
+    cancelled: allAppointments.filter(apt => apt.status === 'cancelled').length,
   };
+
+  // Helper for table header sorting indicators
+  const SortIndicator = ({ column }: { column: typeof sortBy }) => {
+    if (sortBy === column) {
+      return sortOrder === 'ASC' ? <span className="ml-1">▲</span> : <span className="ml-1">▼</span>;
+    }
+    return null;
+  };
+
+  const handleSort = (column: typeof sortBy) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortBy(column);
+      setSortOrder('ASC');
+    }
+    // Data fetching is triggered by useEffect watching sortBy and sortOrder
+  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -198,17 +244,17 @@ export function DashboardPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              {(['all', 'pending', 'confirmed', 'cancelled'] as const).map((status) => (
+              {(['all', 'pending', 'confirmed', 'cancelled'] as const).map((statusVal) => (
                 <button
-                  key={status}
-                  onClick={() => setFilter(status)}
+                  key={statusVal}
+                  onClick={() => setStatusFilter(statusVal)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    filter === status
+                    statusFilter === statusVal
                       ? 'bg-primary text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  {status === 'all' ? 'Todos' : getStatusText(status)}
+                  {statusVal === 'all' ? 'Todos' : getStatusText(statusVal)}
                 </button>
               ))}
             </div>
@@ -221,16 +267,31 @@ export function DashboardPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Cliente</th>
+                  <th
+                    className="text-left py-3 px-4 font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('user_name')}
+                  >
+                    Cliente <SortIndicator column="user_name" />
+                  </th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-900">Contacto</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Fecha</th>
+                  <th
+                    className="text-left py-3 px-4 font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('appointment_date')}
+                  >
+                    Fecha <SortIndicator column="appointment_date" />
+                  </th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-900">Hora</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Estado</th>
+                  <th
+                    className="text-left py-3 px-4 font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('status')}
+                  >
+                    Estado <SortIndicator column="status" />
+                  </th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-900">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredAppointments.map((appointment) => (
+                {displayedAppointments.map((appointment) => (
                   <tr key={appointment.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4">
                       <div>
@@ -284,7 +345,7 @@ export function DashboardPage() {
             </table>
           </div>
           
-          {filteredAppointments.length === 0 && (
+          {displayedAppointments.length === 0 && (
             <div className="text-center py-12">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600">No se encontraron turnos</p>
