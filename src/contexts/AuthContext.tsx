@@ -64,14 +64,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(null);
             setIsAdmin(false);
           }
-        } else {
+        } else { // This else corresponds to `if (token)`
           // No token found in localStorage.
           setUser(null);
           setIsAdmin(false);
         }
-      } catch (e) {
-        // Catch any unexpected errors during the auto-login process
-        console.error("Unexpected error during auto-login:", e);
+      } catch (e) { // This catch is for unexpected errors in the overall logic of attemptAutoLogin
+        console.error("Unexpected error during auto-login process:", e);
+        // Ensure cleanup if any unexpected error occurs
         localStorage.removeItem('adminAuthToken');
         localStorage.removeItem('adminUser');
         setUser(null);
@@ -79,7 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setLoading(false);
       }
-
     };
     attemptAutoLogin();
   }, []);

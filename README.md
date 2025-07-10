@@ -96,10 +96,10 @@ npm install
      **`admin_users` table:**
      ```sql
      CREATE TABLE admin_users (
-         id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- Or use uuid_generate_v4()
+         id UUID PRIMARY KEY DEFAULT gen_random_uuid(), -- Or use uuid_generate_v4() if extension is enabled
          email TEXT NOT NULL UNIQUE,
          full_name TEXT NOT NULL,
-         -- password_hash TEXT NOT NULL, -- Add this when implementing secure auth
+         password_hash TEXT NOT NULL, -- Stores the bcrypt hashed password
          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
      );
      ```
@@ -155,17 +155,21 @@ npm install
 -   **Frontend (Public Appointment Booking):** Open your browser and go to `http://localhost:5173` (or the port Vite assigned).
 -   **Admin Section:**
     -   Navigate to `http://localhost:5173/admin/login` to access the admin login page.
-    -   **Mock Admin User:** To log in, you'll first need an admin user in your `admin_users` table. You can insert one manually using SQL:
+    -   **Initial Admin User:** To log in for the first time, you'll need an admin user in your `admin_users` table. You can insert one manually using SQL.
+        You'll need to provide a bcrypt-hashed password. For example, to use the password "adminpassword", you would first hash it (you can use an online bcrypt generator or a simple Node.js script).
+        Let's assume `$2b$10$YourGeneratedHashHere` is the bcrypt hash for "adminpassword".
         ```sql
-        INSERT INTO admin_users (email, full_name) VALUES ('admin@example.com', 'Admin User');
+        INSERT INTO admin_users (email, full_name, password_hash)
+        VALUES ('admin@example.com', 'Admin User', '$2b$10$YourGeneratedHashHere');
         ```
-        Then use `admin@example.com` and any password on the login page (as password checking is currently mocked).
+        Then use `admin@example.com` and "adminpassword" on the login page. The backend uses bcrypt to verify the password.
+        Alternatively, after setting up one admin user, you can create others through the (yet-to-be-fully-implemented) admin user management interface if available and you are logged in as an admin.
 -   **Backend API Documentation:** Can be found at `server/API_DOCUMENTATION.md`.
 
 ## Development Notes
 
-*   **Backend:** The backend API is defined in `server/routes/`. Database interaction is handled by `server/db.js`.
+*   **Backend:** The backend API is defined in `server/routes/`. Database interaction is handled by `server/db.js`. Admin authentication uses bcrypt for password hashing and JWT for sessions.
 *   **Frontend:** Components are in `src/components/` and pages in `src/pages/`. API interactions are managed through `src/lib/apiClient.ts`. Authentication state is managed by `src/contexts/AuthContext.tsx`.
-*   **Security:** The current admin authentication is **for mock/development purposes only** and is not secure. For production, implement proper password hashing (e.g., bcrypt) on the backend and a secure session/token mechanism (e.g., JWT with HttpOnly cookies).
+*   **Security:** Admin authentication is implemented with bcrypt password hashing and JWTs. Ensure `JWT_SECRET` in `server/.env` is strong and kept secret.
 
 Enjoy using the application!

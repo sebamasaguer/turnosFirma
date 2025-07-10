@@ -45,16 +45,16 @@ export function AppointmentsPage() {
 
   const checkAvailableSlots = async (date: Date) => {
     const dateString = format(date, 'yyyy-MM-dd');
-    
+    setAvailableSlots(timeSlots.map(time => ({ time, available: false }))); // Reset and show loading if desired
+
     try {
-      // Assuming getAppointments can be filtered by date and status on the backend,
-      // or we filter client-side if it returns all appointments.
-      // For now, let's assume it returns all and we filter here.
-      // Ideally, backend should support /api/appointments?appointment_date=YYYY-MM-DD&status=confirmed
-      const allAppointments = await getAppointments();
-      const occupiedTimes = allAppointments
-        .filter(apt => apt.appointment_date === dateString && apt.status === 'confirmed')
-        .map(apt => apt.appointment_time);
+      // Fetch only confirmed appointments for the selected date
+      const confirmedAppointmentsOnDate = await getAppointments({
+        appointment_date: dateString,
+        status: 'confirmed', // Fetch only confirmed appointments
+      });
+
+      const occupiedTimes = confirmedAppointmentsOnDate.map(apt => apt.appointment_time);
 
       const slots = timeSlots.map(time => ({
         time,
@@ -64,14 +64,18 @@ export function AppointmentsPage() {
       setAvailableSlots(slots);
     } catch (error) {
       console.error("Error fetching available slots:", error);
-      // Optionally, set an error state to inform the user
-      setAvailableSlots(timeSlots.map(time => ({ time, available: false }))); // Mark all as unavailable on error
+      // Mark all as unavailable on error, and maybe show a message to the user
+      setAvailableSlots(timeSlots.map(time => ({ time, available: false })));
+      alert('No se pudieron cargar los horarios disponibles. Intente más tarde.');
     }
   };
 
   useEffect(() => {
     if (selectedDate) {
       checkAvailableSlots(selectedDate);
+      setSelectedTime(''); // Reset selected time when date changes
+    } else {
+      setAvailableSlots([]); // Clear slots if no date is selected
     }
   }, [selectedDate]);
 

@@ -73,7 +73,16 @@ router.get('/users', authenticateToken, async (req, res) => {
 router.post('/users', authenticateToken, async (req, res) => {
     const { email, full_name, password } = req.body;
     if (!email || !full_name || !password) {
-        return res.status(400).json({ error: 'Email, full name, and password are required' });
+        return res.status(400).json({ error: 'Email, full name, and password are required.' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ error: 'Invalid email format.' });
+    }
+
+    if (password.length < 8) { // Example: Basic password length validation
+        return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     }
 
     // Optional: Add role-based authorization here (e.g., only superadmin can create)
@@ -113,46 +122,56 @@ router.post('/users', authenticateToken, async (req, res) => {
 // PUT (update) an admin user - PROTECTED
 router.put('/users/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { email, full_name } = req.body;
+    const updates = req.body;
 
+    // Define allowed fields for update
+    const allowedFields = {
+        email: 'email',
+        full_name: 'full_name',
+        // Password updates should be handled through a separate, dedicated endpoint
+        // to ensure proper security measures like confirming current password, etc.
+        // password_hash: 'password_hash' // Example if direct hash update were allowed (not recommended)
+    };
 
-    if (!email && !full_name) {
-        return res.status(400).json({ error: 'No fields to update provided (email, full_name).' });
+    const setClauses = [];
+    const values = [];
+    let paramCount = 1;
+    const validationErrors = [];
+
+    for (const key in updates) {
+        if (updates.hasOwnProperty(key) && allowedFields[key]) {
+            const value = updates[key];
+            if (key === 'email') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(value)) {
+                    validationErrors.push('Invalid email format.');
+                }
+            }
+            // Add other field specific validations here if necessary
+
+            setClauses.push(`${allowedFields[key]} = $${paramCount++}`);
+            values.push(value);
+        }
     }
 
+    if (validationErrors.length > 0) {
+        return res.status(400).json({ errors: validationErrors });
+    }
 
-    // Optional: Check if the authenticated user is updating their own profile or has permission
-    // if (req.user.id !== id && req.user.role !== 'superadmin') {
-    //     return res.status(403).json({ error: 'Forbidden' });
-    // }
+    if (setClauses.length === 0) {
+        return res.status(400).json({ error: 'No valid fields to update provided (email, full_name).' });
+    }
 
+    values.push(id); // For the WHERE id = $N clause
+
+    const queryText = `
+        UPDATE admin_users
+        SET ${setClauses.join(', ')}
+        WHERE id = $${paramCount}
+        RETURNING id, email, full_name, created_at;
+    `;
 
     try {
-        const setClauses = [];
-        const values = [];
-        let paramCount = 1;
-
-        if (email) {
-            setClauses.push(`email = $${paramCount++}`);
-            values.push(email);
-        }
-        if (full_name) {
-            setClauses.push(`full_name = $${paramCount++}`);
-            values.push(full_name);
-        }
-
-        if (setClauses.length === 0) {
-            return res.status(400).json({ error: 'No valid update fields provided.' });
-        }
-
-        values.push(id);
-
-        const queryText = `
-            UPDATE admin_users
-            SET ${setClauses.join(', ')}
-            WHERE id = $${paramCount}
-            RETURNING id, email, full_name, created_at;
-        `;
         const { rows } = await db.query(queryText, values);
 
         if (rows.length === 0) {
@@ -161,9 +180,7 @@ router.put('/users/:id', authenticateToken, async (req, res) => {
         res.json(rows[0]);
     } catch (err) {
         console.error(`Error updating admin user ${id}:`, err);
-
-        if (err.code === '23505') {
-
+        if (err.code === '23505') { // Unique violation, e.g., email already exists
             return res.status(409).json({ error: 'Another admin user with this email already exists.' });
         }
         res.status(500).json({ error: 'Internal server error' });
